@@ -1,6 +1,4 @@
-// events/threadLogin.js
-
-const { Events, ChannelType, EmbedBuilder } = require('discord.js');
+const { Events, ChannelType } = require('discord.js');
 
 // === 設定ID ===
 const forumChannelId = '1434095946958114918'; // 監視対象のフォーラムチャンネルID
@@ -11,10 +9,9 @@ const inactivityThresholdDays = 10; // 非アクティブと見なす日数 (10�
  * @param {Client} client - Discordクライアントインスタンス
  */
 async function checkAndBumpThreads(client) {
-    console.log(`[ThreadLogin] スレッドのアクティビティチェックを開始します... (${new Date().toLocaleString()})`);
+    console.log(`[ThreadLogin] スレッドのアクティビティチェックを開始します... (${new Date().toLocaleString('ja-JP')})`);
     
-    // 対象チャンネルが利用可能かチェック
-    const guild = client.guilds.cache.first(); 
+    const guild = client.guilds.cache.first();
     if (!guild) return console.log("[ThreadLogin] ギルドが見つかりません。");
 
     const forumChannel = guild.channels.cache.get(forumChannelId);
@@ -29,47 +26,43 @@ async function checkAndBumpThreads(client) {
     let bumpedCount = 0;
 
     try {
-        // アクティブなスレッドをすべて取得
-        const activeThreads = await forumChannel.threads.fetchActive();
+        // アクティブなスレッドをすべて取得（スレッドメタデータを含む）
+        const activeThreads = await forumChannel.threads.fetchActive({ force: true });
         
-        // 💡 念のため、archiveDurationに関わらず過去3日間のパブリックスレッドもフェッチ
-        // await forumChannel.threads.fetchArchived({ type: 'public', before: Date.now() - 3 * 24 * 60 * 60 * 1000 });
-
         for (const thread of activeThreads.threads.values()) {
             
-            // 💡 修正: lastMessageIdがなければ、スレッド自体の作成時刻を最終アクティビティとする
+            // 💡 修正後の安全な最終アクティビティ時刻の取得ロジック
             let lastActivityTime;
             
-            if (thread.lastMessageId) {
-                // lastMessageIdが存在する場合、そのメッセージのタイムスタンプを使用
-                // lastMessageはnullの場合があるため、lastMessageId経由で確認する
-                if (thread.lastMessage) {
-                    lastActivityTime = thread.lastMessage.createdTimestamp;
-                } else {
-                    // lastMessageがキャッシュされていなくても、最終活動時刻はスレッドオブジェクトにあります
-                    lastActivityTime = thread.threadMetadata.archiveTimestamp; 
+            // 1. lastMessageのタイムスタンプを使用（最も正確な最終アクティビティ）
+            if (thread.lastMessage) {
+                lastActivityTime = thread.lastMessage.createdTimestamp;
+            } 
+            // 2. lastMessageがない場合、スレッド自体に記録されている最終メッセージIDのタイムスタンプを使用
+            else if (thread.lastMessageId) {
+                // lastMessageIdが存在する場合、そのメッセージを取得してタイムスタンプを使用
+                try {
+                    const lastMessage = await thread.messages.fetch(thread.lastMessageId);
+                    lastActivityTime = lastMessage.createdTimestamp;
+                } catch (e) {
+                    // フェッチに失敗した場合、スレッドの作成時刻を使用
+                    lastActivityTime = thread.createdTimestamp;
                 }
-            }
-            
-            // スレッド作成後、一度もメッセージが送信されていない場合
-            if (!thread.lastMessageId) {
+            } 
+            // 3. メッセージが全くない場合（lastMessageIdがない）、スレッドの作成時刻を使用
+            else {
                 lastActivityTime = thread.createdTimestamp;
             }
 
-            // lastActivityTimeが有効な値であることを確認
-            if (!lastActivityTime) {
-                // 最悪の場合、スレッドの作成時刻を使用
-                lastActivityTime = thread.createdTimestamp;
-            }
-
-            // 非アクティブ期間を計算し、10日以上かチェック
+            // 非アクティブ期間をチェック
             if (now - lastActivityTime > thresholdMs) {
                 
-                const bumpMessage = '⏫'; 
+                const bumpMessage = '⏫'; // スレッドを最上部に移動させるためのメッセージ
 
                 try {
+                    // スレッドにメッセージを送信し、スレッドをアクティブ化
                     await thread.send({ content: bumpMessage });
-                    console.log(`[ThreadLogin] スレッド '${thread.name}' (${thread.id}) が非アクティブだったためアクティブ化しました。`);
+                    console.log(`[ThreadLogin] スレッド '${thread.name}' (${thread.id}) をアクティブ化しました。`);
                     bumpedCount++;
                     
                 } catch (error) {
@@ -81,7 +74,8 @@ async function checkAndBumpThreads(client) {
         console.log(`[ThreadLogin] チェック完了。${bumpedCount}個のスレッドをアクティブ化しました。`);
 
     } catch (error) {
-        console.error("[ThreadLogin] スレッドのフェッチ中にエラーが発生しました:", error);
+        // スレッドのフェッチ自体に失敗した場合のログ
+        console.error("[ThreadLogin] スレッドのフェッチ中に致命的なエラーが発生しました:", error);
     }
 }
 
