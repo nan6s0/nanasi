@@ -1,19 +1,21 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits } = require('discord.js');
 
-// 権限専用のコマンドですが、説明は空にします
-const targetChannelId = '707800417131692104';
+// 💡 修正: チャンネルIDではなくユーザーIDとして定義
+const staffUserId = '707800417131692104'; 
+// パネルを送信するチャンネルを制限しない場合は、この変数は不要かもしれません。
+// ここでは、コマンドの実行者が特定のユーザーであることをチェックします。
 
 module.exports = {
-    // コマンドは公開しませんが、実行は可能です
+    // コマンドは公開されますが、実行は特定のユーザーに制限されます
     data: new SlashCommandBuilder()
         .setName('ticket')
         .setDescription('お問い合わせパネルを送信します。'),
     
     async execute(interaction) {
-        // 707800417131692104専用コマンドとしてチェック
-        if (interaction.channelId !== targetChannelId) {
+        // 💡 修正: ユーザーIDが指定されたIDと一致するかチェック
+        if (interaction.user.id !== staffUserId) {
             return interaction.reply({ 
-                content: 'このコマンドは特定のチャンネルでのみ実行可能です。', 
+                content: 'このコマンドは特定の管理者のみ実行可能です。', 
                 ephemeral: true 
             });
         }
@@ -34,6 +36,7 @@ module.exports = {
             );
 
         // メッセージを送信
+        // パネルを送信するチャンネルは、コマンドを実行したチャンネルになります。
         await interaction.channel.send({
             embeds: [panelEmbed],
             components: [row],
