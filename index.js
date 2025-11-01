@@ -7,6 +7,9 @@ const { Client, Collection, GatewayIntentBits, Events } = require('discord.js');
 const http = require('node:http'); // Webサーバー用
 const https = require('node:https'); // 💡 セルフPing用に追加
 
+// 💡 threadLogin.js から関数をインポート
+const { checkAndBumpThreads } = require('./events/threadLogin'); 
+
 // 💡 自身のRender URLを設定
 const selfPingUrl = 'https://nanasi-ze83.onrender.com'; 
 
@@ -72,11 +75,19 @@ for (const file of eventFiles) {
     }
 }
 
-// 💡 セルフPing処理の追加
+// 💡 スレッドチェックとセルフPingの処理を追加
 client.once(Events.ClientReady, () => {
     console.log(`ボット ${client.user.tag} が起動しました！`);
     
-    // 5分 (300,000ミリ秒) ごとにセルフPingを実行
+    // 1. スレッドのアクティビティチェックを登録（1時間ごと）
+    // 初回起動時にも実行
+    checkAndBumpThreads(client); 
+    // 1時間 = 3600000ms
+    setInterval(() => {
+        checkAndBumpThreads(client);
+    }, 1 * 60 * 60 * 1000); 
+    
+    // 2. セルフPingを実行（5分ごと）
     setInterval(() => {
         // Render URLにHTTPSリクエストを送信
         https.get(selfPingUrl, (res) => {
