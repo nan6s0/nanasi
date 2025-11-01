@@ -2,7 +2,8 @@
 require('dotenv').config();
 const fs = require('node:fs');
 const path = require('node:path');
-const { Client, Collection, GatewayIntentBits } = require('discord.js');
+const { Client, Collection, GatewayIntentBits, Events } = require('discord.js'); // Eventsを追加
+const http = require('node:http'); // 💡 追記: Webサーバー用のhttpモジュールをインポート
 
 // Botクライアントの作成と必要な権限の設定
 const client = new Client({ 
@@ -46,10 +47,13 @@ for (const file of eventFiles) {
     }
 }
 
-// スラッシュコマンドの処理
-client.on('interactionCreate', async interaction => {
-    if (!interaction.isChatInputCommand()) return;
+// スラッシュコマンド（interactionCreate）の処理
+client.on(Events.InteractionCreate, async interaction => {
+    // 💡 既存の interactionCreate イベント処理はそのまま維持
 
+    // スラッシュコマンド以外（ボタンなど）は、イベントファイル（events/ticket.js）で処理されます
+    if (!interaction.isChatInputCommand()) return; 
+    
     const command = interaction.client.commands.get(interaction.commandName);
 
     if (!command) {
@@ -76,6 +80,22 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
+
+// 💡 追記: Render 24時間稼働のための簡易Webサーバー
+// Renderが提供する環境変数 PORT を使用。指定がなければ3000を使用
+const port = process.env.PORT || 3000;
+
+// HTTPサーバーの作成
+const server = http.createServer((req, res) => {
+    // Renderのヘルスチェックに応答 (どのパスに来ても200 OKを返す)
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Discord Bot is alive\n');
+});
+
+// 指定されたポートでリッスンを開始
+server.listen(port, () => {
+    console.log(`Web server listening on port ${port} for health checks.`);
+});
+
 // Botのログイン
 client.login(process.env.TOKEN);
-
