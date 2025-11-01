@@ -6,17 +6,17 @@ const logChannelId = '1434111754232664125'; // 作成ログを送信するチャ
 const staffId = '707800417131692104'; // チケットチャンネルで権限を持つユーザー/ロールのID
 
 module.exports = {
-    // ボタンのインタラクションを処理するため、InteractionCreateのまま
     name: Events.InteractionCreate,
     once: false,
     async execute(interaction) {
-        // メッセージイベントやスラッシュコマンドは無視し、ボタンのみを処理
+        // ボタンインタラクションのみを処理
         if (!interaction.isButton()) return;
         
         // ============================
         // 1. チケットオープンボタンの処理
         // ============================
         if (interaction.customId === 'open_ticket') {
+            // 💡 修正: タイムアウトエラー(10062)を防ぐため、最初にdeferReply
             await interaction.deferReply({ ephemeral: true }); 
 
             const user = interaction.user;
@@ -26,9 +26,10 @@ module.exports = {
             // チャンネル名の生成 (例: ticket-username)
             const channelName = `ticket-${user.username.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
 
-            // 既にチケットチャンネルが存在しないか簡易的にチェック (カテゴリID内のチャンネル名でチェック)
+            // 既にチケットチャンネルが存在しないか簡易的にチェック
             const existingChannel = guild.channels.cache.find(c => 
-                c.parentId === categoryId && c.name === channelName
+                c.parentId === categoryId && c.name.startsWith('ticket-') && 
+                c.permissionOverwrites.cache.some(p => p.id === user.id)
             );
             if (existingChannel) {
                  return interaction.editReply({ 
@@ -42,7 +43,7 @@ module.exports = {
                 const ticketChannel = await guild.channels.create({
                     name: channelName,
                     type: ChannelType.GuildText,
-                    parent: categoryId, // 指定されたカテゴリ
+                    parent: categoryId,
                     permissionOverwrites: [
                         { id: guild.roles.everyone, deny: [PermissionFlagsBits.ViewChannel] },
                         { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
@@ -75,7 +76,7 @@ module.exports = {
                     .setDescription('お問い合わせ内容を送信してお待ちください。');
 
                 await ticketChannel.send({
-                    content: `<@${user.id}> <@${staffId}>`, // メンション
+                    content: `<@${user.id}> <@${staffId}>`, 
                     embeds: [welcomeEmbed]
                 });
 
@@ -89,12 +90,12 @@ module.exports = {
                 await interaction.editReply({ 
                     content: 'チケットの作成中にエラーが発生しました。', 
                     ephemeral: true 
-                });
+                }).catch(() => {});
             }
         }
 
         // ============================
-        // 2. チケットクローズボタンの処理 (InteractionCreate内で処理)
+        // 2. チケットクローズボタンの処理
         // ============================
         if (interaction.customId === 'close_ticket' || interaction.customId === 'cancel_close') {
             await interaction.deferReply({ ephemeral: true });
@@ -109,16 +110,22 @@ module.exports = {
 
             if (interaction.customId === 'close_ticket') {
                 try {
+                    // チャンネルを削除する前に、確認メッセージを編集（ボタンを無効化）
+                    await interaction.message.edit({
+                        content: 'チャンネルを削除しています...',
+                        embeds: interaction.message.embeds,
+                        components: [], // ボタンを削除
+                    });
                     await interaction.channel.delete();
                 } catch (error) {
                     console.error('チャンネル削除中にエラーが発生しました:', error);
                     await interaction.editReply({ 
                         content: 'チャンネルの削除中にエラーが発生しました。', 
                         ephemeral: true 
-                    });
+                    }).catch(() => {});
                 }
             } else if (interaction.customId === 'cancel_close') {
-                // キャンセルメッセージを編集（ボタンと埋め込みを削除）
+                // キャンセルメッセージを編集
                 await interaction.message.edit({
                     content: 'チャンネル削除をキャンセルしました。',
                     embeds: [],
