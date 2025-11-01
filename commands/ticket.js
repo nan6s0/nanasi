@@ -1,22 +1,21 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
 
-// 💡 修正: チャンネルIDではなくユーザーIDとして定義
 const staffUserId = '707800417131692104'; 
-// パネルを送信するチャンネルを制限しない場合は、この変数は不要かもしれません。
-// ここでは、コマンドの実行者が特定のユーザーであることをチェックします。
 
 module.exports = {
-    // コマンドは公開されますが、実行は特定のユーザーに制限されます
     data: new SlashCommandBuilder()
         .setName('ticket')
         .setDescription('お問い合わせパネルを送信します。'),
     
     async execute(interaction) {
-        // 💡 修正: ユーザーIDが指定されたIDと一致するかチェック
+        // 💡 修正1: 最初にdeferReplyを行い、二重応答エラーを防ぐ
+        await interaction.deferReply({ ephemeral: true }); 
+
+        // 707800417131692104専用コマンドとしてチェック
         if (interaction.user.id !== staffUserId) {
-            return interaction.reply({ 
-                content: 'このコマンドは特定の管理者のみ実行可能です。', 
-                ephemeral: true 
+            // deferReplyの後の応答は editReply を使用
+            return interaction.editReply({ 
+                content: 'このコマンドは特定の管理者のみ実行可能です。'
             });
         }
 
@@ -36,16 +35,14 @@ module.exports = {
             );
 
         // メッセージを送信
-        // パネルを送信するチャンネルは、コマンドを実行したチャンネルになります。
         await interaction.channel.send({
             embeds: [panelEmbed],
             components: [row],
         });
 
-        // コマンド実行の応答（ephemeralで非表示）
-        await interaction.reply({ 
-            content: 'お問い合わせパネルを送信しました。', 
-            ephemeral: true 
+        // 💡 修正2: deferReplyの後の応答は editReply を使用
+        await interaction.editReply({ 
+            content: 'お問い合わせパネルを送信しました。'
         });
     },
 };
