@@ -4,7 +4,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 // EventsとClientを同じ行でインポート
 const { Client, Collection, GatewayIntentBits, Events } = require('discord.js');
-const http = require('node:http'); // Render対応のため追加
+const http = require('node:http'); // Webサーバー用
+const https = require('node:https'); // 💡 セルフPing用に追加
+
+// 💡 自身のRender URLを設定
+const selfPingUrl = 'https://nanasi-ze83.onrender.com'; 
 
 // Botクライアントの作成と全てのインテントの設定
 const client = new Client({
@@ -67,6 +71,22 @@ for (const file of eventFiles) {
         client.on(event.name, (...args) => event.execute(...args));
     }
 }
+
+// 💡 セルフPing処理の追加
+client.once(Events.ClientReady, () => {
+    console.log(`ボット ${client.user.tag} が起動しました！`);
+    
+    // 5分 (300,000ミリ秒) ごとにセルフPingを実行
+    setInterval(() => {
+        // Render URLにHTTPSリクエストを送信
+        https.get(selfPingUrl, (res) => {
+            console.log(`[セルフPing] ステータスコード: ${res.statusCode} (${new Date().toLocaleTimeString('ja-JP')})`);
+        }).on('error', (err) => {
+            console.error(`[セルフPing] エラーが発生しました: ${err.message}`);
+        });
+    }, 5 * 60 * 1000); // 5分 = 300000ms
+});
+
 
 // スラッシュコマンド（InteractionCreate）の処理
 client.on(Events.InteractionCreate, async interaction => {
