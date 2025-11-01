@@ -12,8 +12,8 @@ module.exports = {
         // ボット自身のメッセージと、特定のスタッフからのメッセージ以外は無視
         if (message.author.bot || message.author.id !== staffId) return;
 
-        // 「チ閉じると」メッセージをチェック
-        if (message.content === 'チ閉じると') {
+        // 「チ閉じる」メッセージをチェック
+        if (message.content === 'チ閉じる') {
             const channel = message.channel;
 
             // カテゴリIDの確認 (チケットチャンネル内でのみ有効とする)
