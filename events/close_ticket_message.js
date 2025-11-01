@@ -5,8 +5,7 @@ const categoryId = '1434106965423820902'; // チケットチャンネルを作�
 const staffId = '707800417131692104'; // チケットチャンネルで権限を持つユーザー/ロールのID
 
 module.exports = {
-    // 💡 修正: MessageCreateイベントとして定義
-    name: Events.MessageCreate,
+    name: Events.MessageCreate, // 💡 MessageCreateイベントとして定義
     once: false,
     async execute(message) {
         // ボット自身のメッセージと、特定のスタッフからのメッセージ以外は無視
@@ -27,11 +26,11 @@ module.exports = {
             const row = new ActionRowBuilder()
                 .addComponents(
                     new ButtonBuilder()
-                        .setCustomId('close_ticket') // events/ticket.jsで処理される
+                        .setCustomId('close_ticket') 
                         .setLabel('閉じる')
                         .setStyle(ButtonStyle.Danger),
                     new ButtonBuilder()
-                        .setCustomId('cancel_close') // events/ticket.jsで処理される
+                        .setCustomId('cancel_close') 
                         .setLabel('キャンセル')
                         .setStyle(ButtonStyle.Secondary),
                 );
