@@ -2,16 +2,38 @@
 require('dotenv').config();
 const fs = require('node:fs');
 const path = require('node:path');
+// EventsとClientを同じ行でインポート
 const { Client, Collection, GatewayIntentBits, Events } = require('discord.js');
-const http = require('node:http'); // 💡 Render対応のため追加
+const http = require('node:http'); // Render対応のため追加
 
-// Botクライアントの作成と必要な権限の設定
-const client = new Client({ 
+// Botクライアントの作成と全てのインテントの設定
+const client = new Client({
     intents: [
+        // === 基本インテント ===
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
-    ] 
+        GatewayIntentBits.GuildMembers,         // メンバー参加/退出など (特権)
+        GatewayIntentBits.GuildModeration,      // BANやtimeoutなど
+        GatewayIntentBits.GuildEmojisAndStickers, // 絵文字・スタンプ
+        GatewayIntentBits.GuildIntegrations,    // 統合機能（Twitchなど）
+        GatewayIntentBits.GuildWebhooks,        // Webhook関連
+        GatewayIntentBits.GuildInvites,         // 招待リンク関連
+        GatewayIntentBits.GuildVoiceStates,     // VC状態（通話Botなどに必要）
+        GatewayIntentBits.GuildPresences,       // オンライン/オフライン検知（特権）
+        GatewayIntentBits.GuildMessages,        // メッセージイベント
+        GatewayIntentBits.GuildMessageReactions, // リアクションイベント
+        GatewayIntentBits.GuildMessageTyping,   // 入力中イベント
+
+        // === DM関連 ===
+        GatewayIntentBits.DirectMessages,       // DM送受信
+        GatewayIntentBits.DirectMessageReactions, // DMのリアクション
+        GatewayIntentBits.DirectMessageTyping,  // DMでの入力中イベント
+
+        // === その他 ===
+        GatewayIntentBits.MessageContent,       // メッセージ本文の読み取り (特権)
+        GatewayIntentBits.GuildScheduledEvents, // サーバーイベント関連
+        GatewayIntentBits.AutoModerationConfiguration, // 自動モデレーション設定
+        GatewayIntentBits.AutoModerationExecution  // 自動モデレーションの実行
+    ]
 });
 
 // コマンドを格納するコレクションの作成
@@ -59,22 +81,21 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 
     try {
+        // コマンド実行（commands/ticket.jsで deferReply を行う）
         await command.execute(interaction);
     } catch (error) {
         console.error(error);
-        // 💡 修正: エラー時の応答処理をより堅牢化
+        // エラー時の応答処理を堅牢化し、クラッシュを防ぐ
         if (interaction.deferred || interaction.replied) {
-            // deferReply または reply 済みの場合、followUp を試みる
             await interaction.followUp({ 
                 content: 'コマンドの実行中にエラーが発生しました。', 
                 ephemeral: true 
-            }).catch(() => {}); // followUpが失敗してもクラッシュしない
+            }).catch(() => {});
         } else {
-            // まだ応答していない場合、reply を試みる
             await interaction.reply({ 
                 content: 'コマンドの実行中にエラーが発生しました。', 
                 ephemeral: true 
-            }).catch(() => {}); // replyが失敗してもクラッシュしない
+            }).catch(() => {});
         }
     }
 });
@@ -84,6 +105,7 @@ client.on(Events.InteractionCreate, async interaction => {
 const port = process.env.PORT || 3000;
 
 const server = http.createServer((req, res) => {
+    // Renderのヘルスチェックに応答
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('Discord Bot is alive\n');
 });
