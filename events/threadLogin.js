@@ -1,3 +1,5 @@
+// events/threadLogin.js
+
 const { Events, ChannelType, EmbedBuilder } = require('discord.js');
 
 // === 設定ID ===
@@ -12,17 +14,15 @@ async function checkAndBumpThreads(client) {
     console.log(`[ThreadLogin] スレッドのアクティビティチェックを開始します... (${new Date().toLocaleString()})`);
     
     // 対象チャンネルが利用可能かチェック
-    const guild = client.guilds.cache.first(); // ボットが参加している最初のギルド（サーバー）を取得
+    const guild = client.guilds.cache.first(); 
     if (!guild) return console.log("[ThreadLogin] ギルドが見つかりません。");
 
     const forumChannel = guild.channels.cache.get(forumChannelId);
 
-    // チャンネルの存在とタイプをチェック
     if (!forumChannel || forumChannel.type !== ChannelType.GuildForum) {
         return console.log(`[ThreadLogin] フォーラムチャンネルID ${forumChannelId} が見つからないか、フォーラムではありません。`);
     }
 
-    // 非アクティブ時間の閾値 (ミリ秒)
     const thresholdMs = inactivityThresholdDays * 24 * 60 * 60 * 1000;
     const now = Date.now();
     
@@ -32,25 +32,47 @@ async function checkAndBumpThreads(client) {
         // アクティブなスレッドをすべて取得
         const activeThreads = await forumChannel.threads.fetchActive();
         
+        // 💡 念のため、archiveDurationに関わらず過去3日間のパブリックスレッドもフェッチ
+        // await forumChannel.threads.fetchArchived({ type: 'public', before: Date.now() - 3 * 24 * 60 * 60 * 1000 });
+
         for (const thread of activeThreads.threads.values()) {
             
-            // スレッドの最終メッセージ時刻を取得 (最終アクティビティを示す)
-            const lastActivityTime = thread.lastMessage.createdTimestamp || thread.createdTimestamp;
+            // 💡 修正: lastMessageIdがなければ、スレッド自体の作成時刻を最終アクティビティとする
+            let lastActivityTime;
+            
+            if (thread.lastMessageId) {
+                // lastMessageIdが存在する場合、そのメッセージのタイムスタンプを使用
+                // lastMessageはnullの場合があるため、lastMessageId経由で確認する
+                if (thread.lastMessage) {
+                    lastActivityTime = thread.lastMessage.createdTimestamp;
+                } else {
+                    // lastMessageがキャッシュされていなくても、最終活動時刻はスレッドオブジェクトにあります
+                    lastActivityTime = thread.threadMetadata.archiveTimestamp; 
+                }
+            }
+            
+            // スレッド作成後、一度もメッセージが送信されていない場合
+            if (!thread.lastMessageId) {
+                lastActivityTime = thread.createdTimestamp;
+            }
 
-            // 非アクティブ期間を計算
+            // lastActivityTimeが有効な値であることを確認
+            if (!lastActivityTime) {
+                // 最悪の場合、スレッドの作成時刻を使用
+                lastActivityTime = thread.createdTimestamp;
+            }
+
+            // 非アクティブ期間を計算し、10日以上かチェック
             if (now - lastActivityTime > thresholdMs) {
                 
-                // 10日以上アクティビティがない場合
-                const bumpMessage = '⏫'; // あと送りを消す代わりに、シンプルな絵文字でスレッドを最上部に移動させます
+                const bumpMessage = '⏫'; 
 
                 try {
-                    // スレッドにメッセージを送信し、スレッドをアクティブ化（最上部に移動）
                     await thread.send({ content: bumpMessage });
                     console.log(`[ThreadLogin] スレッド '${thread.name}' (${thread.id}) が非アクティブだったためアクティブ化しました。`);
                     bumpedCount++;
                     
                 } catch (error) {
-                    // 権限不足などでメッセージ送信に失敗した場合
                     console.error(`[ThreadLogin] スレッド '${thread.name}' へのメッセージ送信に失敗: ${error.message}`);
                 }
             }
@@ -64,6 +86,5 @@ async function checkAndBumpThreads(client) {
 }
 
 module.exports = {
-    // このファイル自体はイベントを公開しませんが、処理関数をエクスポート
     checkAndBumpThreads
 };
