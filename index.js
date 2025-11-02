@@ -2,10 +2,10 @@
 require('dotenv').config();
 const fs = require('node:fs');
 const path = require('node:path');
-// EventsとClientを同じ行でインポート
-const { Client, Collection, GatewayIntentBits, Events } = require('discord.js');
+// Events, Client, Partialsをインポート ★修正点: Partialsを追加
+const { Client, Collection, GatewayIntentBits, Events, Partials } = require('discord.js');
 const http = require('node:http'); // Webサーバー用
-const https = require('node:https'); // 💡 セルフPing用に追加
+const https = require('node:https'); // セルフPing用に追加
 
 // 💡 threadLogin.js から関数をインポート
 const { checkAndBumpThreads } = require('./events/threadLogin'); 
@@ -18,28 +18,34 @@ const client = new Client({
     intents: [
         // === 基本インテント ===
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,         // メンバー参加/退出など (特権)
-        GatewayIntentBits.GuildModeration,      // BANやtimeoutなど
+        GatewayIntentBits.GuildMembers,      // メンバー参加/退出など (特権)
+        GatewayIntentBits.GuildModeration,   // BANやtimeoutなど
         GatewayIntentBits.GuildEmojisAndStickers, // 絵文字・スタンプ
-        GatewayIntentBits.GuildIntegrations,    // 統合機能（Twitchなど）
-        GatewayIntentBits.GuildWebhooks,        // Webhook関連
-        GatewayIntentBits.GuildInvites,         // 招待リンク関連
-        GatewayIntentBits.GuildVoiceStates,     // VC状態（通話Botなどに必要）
-        GatewayIntentBits.GuildPresences,       // オンライン/オフライン検知（特権）
-        GatewayIntentBits.GuildMessages,        // メッセージイベント
+        GatewayIntentBits.GuildIntegrations,   // 統合機能（Twitchなど）
+        GatewayIntentBits.GuildWebhooks,       // Webhook関連
+        GatewayIntentBits.GuildInvites,      // 招待リンク関連
+        GatewayIntentBits.GuildVoiceStates,    // VC状態（通話Botなどに必要）
+        GatewayIntentBits.GuildPresences,      // オンライン/オフライン検知（特権）
+        GatewayIntentBits.GuildMessages,     // メッセージイベント
         GatewayIntentBits.GuildMessageReactions, // リアクションイベント
-        GatewayIntentBits.GuildMessageTyping,   // 入力中イベント
+        GatewayIntentBits.GuildMessageTyping,  // 入力中イベント
 
         // === DM関連 ===
-        GatewayIntentBits.DirectMessages,       // DM送受信
+        GatewayIntentBits.DirectMessages,      // DM送受信
         GatewayIntentBits.DirectMessageReactions, // DMのリアクション
-        GatewayIntentBits.DirectMessageTyping,  // DMでの入力中イベント
+        GatewayIntentBits.DirectMessageTyping, // DMでの入力中イベント
 
         // === その他 ===
-        GatewayIntentBits.MessageContent,       // メッセージ本文の読み取り (特権)
+        GatewayIntentBits.MessageContent,      // メッセージ本文の読み取り (特権)
         GatewayIntentBits.GuildScheduledEvents, // サーバーイベント関連
         GatewayIntentBits.AutoModerationConfiguration, // 自動モデレーション設定
         GatewayIntentBits.AutoModerationExecution  // 自動モデレーションの実行
+    ],
+    // ★修正点: Partialsの設定を追記
+    partials: [
+        Partials.Message,
+        Partials.Channel,
+        Partials.Reaction
     ]
 });
 
