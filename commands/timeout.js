@@ -32,6 +32,25 @@ module.exports = {
         const durationMs = interaction.options.getString('duration');
         const reason = interaction.options.getString('reason');
 
+        // メンバーオブジェクトを取得し、権限チェックと状態チェックを行う
+        const targetMember = interaction.guild.members.cache.get(targetUser.id);
+
+        if (!targetMember) {
+            return interaction.reply({
+                content: '指定されたユーザーはサーバーにいません。',
+                flags: 64 // ephemeral: true の代替
+            });
+        }
+
+        // 既にタイムアウトされているかチェック（より丁寧なエラー処理）
+        if (targetMember.isCommunicationDisabled()) {
+             // 💡 修正点: flags: 64 を使用
+            return interaction.reply({
+                content: `<@${targetUser.id}> は現在既にタイムアウト中です。解除するには \`/untimeout\` を使用してください。`,
+                flags: 64
+            });
+        }
+
         // 表示用の期間文字列を取得
         const durationName = interaction.options.get('duration').choices.find(c => c.value === durationMs).name;
         
@@ -62,7 +81,8 @@ module.exports = {
         await interaction.reply({
             embeds: [confirmationEmbed],
             components: [row],
-            ephemeral: true
+            // ★ 修正点: ephemeral: true を flags: 64 に変更
+            flags: 64 
         });
     },
 };
