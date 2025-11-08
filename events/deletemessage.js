@@ -17,12 +17,21 @@ module.exports = {
                 // 部分的なメッセージをフェッチして完全なデータを得る
                 await message.fetch();
             } catch (error) {
-                // フェッチに失敗した場合は無視（ログに表示する情報がないため）
-                return console.error('Partialメッセージのフェッチ中にエラー:', error);
+                // DiscordAPIError[10008]: Unknown Message (メッセージが既に存在しない) の場合は、
+                // ログに記録せず、静かに処理を終了する
+                if (error.code === 10008) {
+                    // console.log(`[MessageDelete] 削除済みメッセージのPartialイベントを安全に無視しました: ${error.url}`);
+                    return; 
+                }
+                
+                // その他のフェッチエラーはログに出力して終了
+                console.error('Partialメッセージのフェッチ中にエラー:', error);
+                return;
             }
         }
         
         // ボット自身のメッセージ、DM、Webhookメッセージは無視
+        // message.author が null の可能性（フェッチできなかった場合など）を考慮して ?. でチェック
         if (message.author?.bot || message.author?.system || message.webhookId) return;
         // メッセージの内容が取得できない場合は無視
         if (!message.content) return; 
@@ -47,12 +56,12 @@ module.exports = {
             if (deletionLog) {
                 const { executor, target, extra, createdAt } = deletionLog;
                 
-                // 💡 厳密なチェック: 実行者がメッセージの送信者でなく、かつ、ターゲットID、チャンネルIDが一致し、2秒以内
+                // 💡 厳密なチェック: 実行者がメッセージの送信者でなく、かつ、ターゲットID、チャンネルIDが一致し、5秒以内
                 const isRelevantLog = (
                     executor.id !== message.author.id && // 実行者が送信者ではない (管理者など)
                     target.id === message.author.id &&   // ターゲットが削除されたメッセージの作者である
-                    extra.channel.id === message.channel.id && // チャンネルが一致する
-                    Date.now() - createdAt.getTime() < 5000 // 5秒以内（より安全な時間）
+                    extra?.channel?.id === message.channel.id && // チャンネルが一致する (extra?.channel の安全なアクセス)
+                    Date.now() - createdAt.getTime() < 5000 // 5秒以内
                 );
 
                 if (isRelevantLog) {
