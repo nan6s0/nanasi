@@ -78,7 +78,7 @@ module.exports = {
             await interaction.showModal(modal);
 
         } else if (subcommand === 'finish') {
-            // ギブアウェイ終了ロジック（後でイベントで処理）
+            // ギブアウェイ終了ロジック
             await interaction.deferReply({ flags: EPHEMERAL_FLAG });
 
             const messageId = interaction.options.getString('message_id');
@@ -101,8 +101,8 @@ module.exports = {
 
                 // リアクション情報を取得
                 const reactions = giveawayMessage.reactions.cache;
-                // 最初に追加するBOTのリアクションのカスタムID（ここでは仮にtakonyaのIDを使用）
-                const giveawayEmoji = reactions.find(r => r.emoji.id === '1434097896667746324'); 
+                // BOTが最初に追加したリアクションのカスタムIDまたは汎用絵文字'🎉'
+                const giveawayEmoji = reactions.find(r => r.emoji.id === '1434097896667746324' || r.emoji.name === '🎉'); 
                 
                 if (!giveawayEmoji) {
                     return interaction.editReply({ content: 'ギブアウェイリアクションが見つかりませんでした。メッセージIDを確認してください。' });
@@ -111,7 +111,7 @@ module.exports = {
                 // リアクションした全ユーザーをフェッチ
                 const users = await giveawayEmoji.users.fetch();
                 
-                // BOT自身をリストから除外
+                // BOT自身をリストから除外 (BOTは自動で削除されているはずだが念のため)
                 const participants = users.filter(user => !user.bot);
                 
                 if (participants.size === 0) {
@@ -138,7 +138,9 @@ module.exports = {
                     .setTitle(`🎉 ギブアウェイ終了: ${originalEmbed.title}`)
                     .setDescription(`当選者を選出しました！おめでとうございます！`)
                     .setFooter({ text: 'ギブアウェイは終了しました。' })
-                    .addFields(
+                    .spliceFields(
+                        originalEmbed.fields.length - 2, // 最後の2つのフィールド(人数)を削除
+                        2, 
                         { name: `🏆 当選者 (${actualWinnerCount}名)`, value: winners.join('\n') }
                     );
                 
