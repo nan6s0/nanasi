@@ -40,11 +40,9 @@ module.exports = {
             // ギブアウェイメッセージを送信
             const giveawayMessage = await interaction.channel.send({ 
                 embeds: [giveawayEmbed],
-                // メッセージを簡単に識別できるように、CustomIdを持つコンポーネントを付けておく（必須ではないが便利）
-                // components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('giveaway_placeholder').setLabel('参加').setStyle(ButtonStyle.Secondary).setDisabled(true))]
             });
 
-            // BOT自身が最初のリアクションを追加 (参加ボタンの代わり)
+            // BOT自身が最初のリアクションを追加 (これが後でBOT選出の可能性を防ぐために削除される)
             const emoji = interaction.client.emojis.cache.get(GIVEAWAY_EMOJI_ID);
             if (emoji) {
                 await giveawayMessage.react(emoji);
