@@ -1,12 +1,15 @@
-const { Events, ChannelType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
+const { Events, ChannelType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, APIInteractionResponseFlags } = require('discord.js');
 
 // === 設定IDの変更 ===
 const categoryId = '1434106965423820902'; // チケットチャンネルを作成するカテゴリID
 const logChannelId = '1434111754232664125'; // 作成ログを送信するチャンネルID
 
-// 💡 修正: スタッフのユーザーIDとロールIDを分けて定義
+// スタッフのユーザーIDとロールID
 const staffUserId = '707800417131692104'; // 個別のスタッフユーザーID
 const staffRoleId = '1434492742297456660'; // メンションしたいスタッフロールID
+
+// Ephemeralフラグ
+const EPHEMERAL_FLAG = APIInteractionResponseFlags.Ephemeral;
 
 module.exports = {
     name: Events.InteractionCreate,
@@ -19,7 +22,7 @@ module.exports = {
         // 1. チケットオープンボタンの処理
         // ============================
         if (interaction.customId === 'open_ticket') {
-            await interaction.deferReply({ ephemeral: true }); 
+            await interaction.deferReply({ flags: EPHEMERAL_FLAG });
 
             const user = interaction.user;
             const guild = interaction.guild;
@@ -29,14 +32,12 @@ module.exports = {
             const existingChannel = guild.channels.cache.find(c => 
                 c.parentId === categoryId && 
                 c.type === ChannelType.GuildText &&
-                // ユーザーに ViewChannel 権限が許可されているかチェック
                 c.permissionOverwrites.cache.some(p => p.id === user.id && p.allow.has(PermissionFlagsBits.ViewChannel))
             );
 
             if (existingChannel) {
                 return interaction.editReply({ 
                     content: `既にチケットチャンネルがあります。複数作成することはできません: ${existingChannel}`,
-                    ephemeral: true 
                 });
             }
 
@@ -52,7 +53,6 @@ module.exports = {
                     permissionOverwrites: [
                         { id: guild.roles.everyone, deny: [PermissionFlagsBits.ViewChannel] },
                         { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-                        // 権限にはユーザーIDとロールIDの両方を追加
                         { id: staffUserId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
                         { id: staffRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
                     ],
@@ -65,7 +65,7 @@ module.exports = {
                     .setDescription(`**${user.tag}** がチケットを開きました。`)
                     .addFields(
                         { name: 'ユーザー', value: `<@${user.id}>`, inline: true },
-                        { name: 'チャンネル', value: `<#${ticketChannel.id}>`, inline: true }
+                        { name: 'チャンネル名', value: `\`#${ticketChannel.name}\``, inline: true }
                     )
                     .setTimestamp();
                 
@@ -79,7 +79,6 @@ module.exports = {
                     .setTitle('お問い合わせありがとうございます！')
                     .setDescription('お問い合わせ内容を送信してお待ちください。');
                 
-                // クローズボタン（確認ステップ）の作成
                 const closeButton = new ActionRowBuilder().addComponents(
                     new ButtonBuilder()
                         .setCustomId('confirm_close_ticket')
@@ -87,7 +86,6 @@ module.exports = {
                         .setStyle(ButtonStyle.Danger)
                 );
 
-                // 💡 修正: メッセージのメンションには staffRoleId を使用
                 await ticketChannel.send({
                     content: `<@${user.id}> 様、<@&${staffRoleId}>が対応します。`, 
                     embeds: [welcomeEmbed],
@@ -96,14 +94,12 @@ module.exports = {
 
                 await interaction.editReply({ 
                     content: `チケットチャンネルを作成しました: ${ticketChannel}`,
-                    ephemeral: true 
                 });
 
             } catch (error) {
                 console.error('チケット作成中にエラーが発生しました:', error);
                 await interaction.editReply({ 
                     content: 'チケットの作成中にエラーが発生しました。ボットに必要な権限があるか確認してください。', 
-                    ephemeral: true 
                 }).catch(() => {});
             }
         }
@@ -114,11 +110,12 @@ module.exports = {
 
         // チケットクローズ確認ボタンの処理
         if (interaction.customId === 'confirm_close_ticket') {
+            await interaction.deferReply({ flags: EPHEMERAL_FLAG }); 
+
             // チャンネル表示権限を持つユーザーまたはスタッフのみが実行可能
             if (!interaction.memberPermissions.has(PermissionFlagsBits.ViewChannel)) {
-                 return interaction.reply({ 
+                 return interaction.editReply({ 
                     content: 'このボタンを押す権限がありません。', 
-                    ephemeral: true 
                 });
             }
 
@@ -137,23 +134,23 @@ module.exports = {
                     .setStyle(ButtonStyle.Secondary)
             );
 
-            await interaction.reply({
+            await interaction.editReply({
                 embeds: [confirmEmbed],
                 components: [confirmRow],
-                ephemeral: true
             });
             return;
         }
 
         // チャンネル削除実行 or キャンセルボタンの処理
         if (interaction.customId === 'close_ticket' || interaction.customId === 'cancel_close') {
-            // deferReplyは最初に実行し、処理が固まるのを防ぐ
-            await interaction.deferReply({ ephemeral: true });
+            const channel = interaction.channel; // 削除されるチャンネル情報を取得
+            const closer = interaction.user;     // クローズを実行したユーザー
+
+            // deferReplyは処理の最初に実行されているため、そのまま続行
 
             if (interaction.customId === 'close_ticket') {
                 
                 // 1. クローズ確認メッセージ（元のメッセージ）を編集し、ボタンを無効化
-                // Unknown Messageエラー(10008)を無視し、続行できるようにする
                 try {
                     await interaction.message.edit({
                         content: '✅ チャンネルを削除しています...',
@@ -161,33 +158,47 @@ module.exports = {
                         components: [], // ボタンを削除
                     });
                 } catch (e) {
-                    // Unknown Messageエラーの場合は、メッセージは既に削除されているので無視して続行
                     if (e.code !== 10008) {
                         console.error('確認メッセージの編集中にエラーが発生しました:', e);
                     }
                 }
                 
                 try {
-                    // 2. Ephemeralな応答メッセージをチャンネル削除前に確定させる (Unknown Messageエラー回避 & 「考え中」解除)
+                    // 2. Ephemeralな応答メッセージをチャンネル削除前に確定させる 
                     await interaction.editReply({ 
                         content: 'チケットチャンネルを削除しました。このチャンネルは間もなく閉じられます。', 
-                        ephemeral: true 
                     });
 
+                    // --- クローズログの送信 (削除前に実行) ---
+                    const logChannel = channel.guild.channels.cache.get(logChannelId);
+                    if (logChannel) {
+                        const closeLogEmbed = new EmbedBuilder()
+                            .setColor(0xFF0000)
+                            .setTitle('❌ チケットクローズログ')
+                            .setDescription(`チケットチャンネルがクローズされました。`)
+                            .addFields(
+                                { name: 'チャンネル名', value: `\`#${channel.name}\``, inline: true },
+                                { name: '実行者', value: `<@${closer.id}>`, inline: true }
+                            )
+                            .setTimestamp();
+                        
+                        await logChannel.send({ embeds: [closeLogEmbed] });
+                    }
+                    // --- ログ送信完了 ---
+
                     // 3. チャンネルを削除
-                    await interaction.channel.delete();
+                    await channel.delete();
 
                 } catch (error) {
                     // チャンネル削除中にエラーが発生した場合
                     if (error.code === 10008) { 
-                         // チャンネル削除後のエラーは無視
                          return;
                     }
                     
                     console.error('チャンネル削除中にエラーが発生しました:', error);
                     await interaction.followUp({ 
                         content: 'チャンネルの削除中にエラーが発生しました。ボットの削除権限を確認してください。', 
-                        ephemeral: true 
+                        flags: EPHEMERAL_FLAG 
                     }).catch(() => {});
                 }
             } else if (interaction.customId === 'cancel_close') {
@@ -206,7 +217,6 @@ module.exports = {
 
                 await interaction.editReply({ 
                     content: 'チャンネル削除の確認を取り消しました。', 
-                    ephemeral: true 
                 });
             }
         }
