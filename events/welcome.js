@@ -1,6 +1,6 @@
 const { Events, EmbedBuilder } = require('discord.js');
 
-// === 設定ID ===
+// === 設定ID (使用前に必ずご自身のサーバーIDとチャンネルIDに書き換えてください) ===
 const targetGuildId = '1434084039647821836'; // 対象サーバーID
 const welcomeChannelId = '1434150986980786198'; // 歓迎メッセージ送信先チャンネルID
 
@@ -32,7 +32,7 @@ module.exports = {
         // 2. メンバーのDMへの埋め込みメッセージ送信
         // ------------------------------------
         const dmEmbed = new EmbedBuilder()
-            .setColor(0x00AABB) // 好みの色に変更可能
+            .setColor(0x00AABB) // 好みの色に変更可能 (例: Discordの青)
             .setTitle('ようこそ！配布サーバーへ！')
             .setDescription('ご参加ありがとうございます！配布を受け取る前に、以下のリンクを確認してください。')
             .addFields(
@@ -50,6 +50,7 @@ module.exports = {
         
         try {
             // メンバーにDMを送信
+            // member.send() は member.user.send() と同義です。
             await member.send({ embeds: [dmEmbed] });
         } catch (error) {
             // DMが閉じられている、またはプライバシー設定により送信できない場合のエラー
