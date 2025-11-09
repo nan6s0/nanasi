@@ -1,4 +1,4 @@
-const { Events } = require('discord.js');
+const { Events, EmbedBuilder } = require('discord.js'); // EmbedBuilderをインポート
 
 module.exports = {
     name: Events.MessageReactionAdd,
@@ -45,20 +45,25 @@ module.exports = {
         try {
             await member.roles.add(targetRoleId);
 
-            // Ephemeralメッセージで通知
-            await user.send({
-                content: `✅ サーバー: **${message.guild.name}** にて、<@&${targetRoleId}> を付与しました。`
-            }).catch(() => {
-                // DM送信失敗時、代わりに一時的なチャンネルメッセージで通知（チャンネルを汚すため最終手段）
-                message.channel.send({
-                    content: `<@${user.id}>、✅ <@&${targetRoleId}> を付与しました！`,
-                }).then(replyMessage => {
-                    setTimeout(() => replyMessage.delete().catch(() => {}), 5000);
-                }).catch(() => {});
-            });
+            // 💡 修正: チャンネルに埋め込みを送信し、5秒後に削除
+            const successEmbed = new EmbedBuilder()
+                .setColor(0x2ECC71) // 緑色
+                .setDescription(`✅ <@${user.id}> に <@&${targetRoleId}> を付与しました！`);
+
+            const replyMessage = await message.channel.send({ embeds: [successEmbed] });
+            
+            setTimeout(() => {
+                replyMessage.delete().catch(() => {}); // 削除権限がない場合はエラーを無視
+            }, 5000); // 5秒後に削除
 
         } catch (error) {
             console.error(`ロール付与中にエラーが発生しました: ${error.message}`);
+            // ボットにロール管理権限がない場合や、ボットより上位のロールを付与しようとした場合に発生
+            message.channel.send({
+                content: `<@${user.id}>、ロール付与に失敗しました。管理者にお問い合わせください。`,
+            }).then(replyMessage => {
+                setTimeout(() => replyMessage.delete().catch(() => {}), 5000);
+            }).catch(() => {});
         }
     },
 };
