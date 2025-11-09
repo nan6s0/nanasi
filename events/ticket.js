@@ -16,7 +16,6 @@ module.exports = {
         // 1. チケットオープンボタンの処理
         // ============================
         if (interaction.customId === 'open_ticket') {
-            // タイムアウトエラー(10062)を防ぐため、最初にdeferReply
             await interaction.deferReply({ ephemeral: true }); 
 
             const user = interaction.user;
@@ -27,6 +26,7 @@ module.exports = {
             const existingChannel = guild.channels.cache.find(c => 
                 c.parentId === categoryId && 
                 c.type === ChannelType.GuildText &&
+                // ユーザーに ViewChannel 権限が許可されているかチェック
                 c.permissionOverwrites.cache.some(p => p.id === user.id && p.allow.has(PermissionFlagsBits.ViewChannel))
             );
 
@@ -37,8 +37,7 @@ module.exports = {
                 });
             }
 
-            // 2. チャンネル名の生成 (新しいフォーマット: 🎫｜ユーザー名)
-            // ユーザー名の特殊文字を置換せず、そのまま使用
+            // 2. チャンネル名の生成: 🎫｜ユーザー名
             const channelName = `🎫｜${user.username}`; 
 
             try {
@@ -48,17 +47,13 @@ module.exports = {
                     type: ChannelType.GuildText,
                     parent: categoryId,
                     permissionOverwrites: [
-                        // @everyone には表示を拒否
                         { id: guild.roles.everyone, deny: [PermissionFlagsBits.ViewChannel] },
-                        // チケット作成者には表示と送信を許可
                         { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-                        // スタッフには表示と送信を許可
                         { id: staffId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
                     ],
                 });
 
-                // --- 作成ログの送信（日本時間 UTC+6） ---
-                // 注意: DiscordのタイムスタンプはUTCを使用するため、ここではローカルタイムゾーンを考慮せずUTCで表示
+                // --- 作成ログの送信 ---
                 const logEmbed = new EmbedBuilder()
                     .setColor(0x00FF00)
                     .setTitle('🎫 チケット作成ログ')
@@ -67,7 +62,7 @@ module.exports = {
                         { name: 'ユーザー', value: `<@${user.id}>`, inline: true },
                         { name: 'チャンネル', value: `<#${ticketChannel.id}>`, inline: true }
                     )
-                    .setTimestamp(); // UTCで時刻を表示
+                    .setTimestamp();
                 
                 if (logChannel) {
                     await logChannel.send({ embeds: [logEmbed] });
@@ -79,7 +74,7 @@ module.exports = {
                     .setTitle('お問い合わせありがとうございます！')
                     .setDescription('お問い合わせ内容を送信してお待ちください。');
                 
-                // クローズボタンの作成
+                // クローズボタン（確認ステップ）の作成
                 const closeButton = new ActionRowBuilder().addComponents(
                     new ButtonBuilder()
                         .setCustomId('confirm_close_ticket')
@@ -114,8 +109,8 @@ module.exports = {
         // チケットクローズ確認ボタンの処理
         if (interaction.customId === 'confirm_close_ticket') {
             // チャンネル表示権限を持つユーザーまたはスタッフのみが実行可能
-            if (!interaction.memberPermissions.has(PermissionFlagsBits.ViewChannel) && interaction.user.id !== staffId) {
-                return interaction.reply({ 
+            if (!interaction.memberPermissions.has(PermissionFlagsBits.ViewChannel)) {
+                 return interaction.reply({ 
                     content: 'このボタンを押す権限がありません。', 
                     ephemeral: true 
                 });
@@ -136,7 +131,6 @@ module.exports = {
                     .setStyle(ButtonStyle.Secondary)
             );
 
-            // メッセージに返信することで、確認ボタンを表示
             await interaction.reply({
                 embeds: [confirmEmbed],
                 components: [confirmRow],
@@ -149,36 +143,33 @@ module.exports = {
         if (interaction.customId === 'close_ticket' || interaction.customId === 'cancel_close') {
             await interaction.deferReply({ ephemeral: true });
 
-            // スタッフ（707800417131692104）のみが最終決定ボタンを押せるようにチェック
-            // ※ confirm_close_ticket は誰でも押せるが、削除実行はスタッフのみに限定
-            // if (interaction.user.id !== staffId) {
-            //     return interaction.editReply({ 
-            //         content: 'この最終削除ボタンはスタッフ専用です。', 
-            //         ephemeral: true 
-            //     });
-            // }
-
             if (interaction.customId === 'close_ticket') {
                 try {
-                    // チャンネルを削除する前に、確認メッセージを編集（ボタンを無効化）
+                    // 1. クローズ確認メッセージ（元のメッセージ）を編集し、ボタンを無効化
                     await interaction.message.edit({
                         content: '✅ チャンネルを削除しています...',
                         embeds: [],
-                        components: [], // ボタンを削除
+                        components: [], 
                     });
                     
-                    // チャンネルを削除
-                    await interaction.channel.delete();
-                    
-                    // deferReplyした応答をeditReplyで完了させる
+                    // 2. Ephemeralな応答メッセージをチャンネル削除前に確定させる (Unknown Messageエラー回避)
                     await interaction.editReply({ 
-                        content: 'チケットチャンネルを削除しました。', 
+                        content: 'チケットチャンネルを削除しました。このチャンネルは間もなく閉じられます。', 
                         ephemeral: true 
                     });
 
+                    // 3. チャンネルを削除
+                    await interaction.channel.delete();
+
                 } catch (error) {
+                    // チャンネル削除中にエラーが発生した場合
+                    if (error.code === 10008) {
+                         // Unknown Messageエラーは、チャンネルは削除済みとみなし静かに終了
+                         return;
+                    }
+                    
                     console.error('チャンネル削除中にエラーが発生しました:', error);
-                    await interaction.editReply({ 
+                    await interaction.followUp({ 
                         content: 'チャンネルの削除中にエラーが発生しました。ボットの削除権限を確認してください。', 
                         ephemeral: true 
                     }).catch(() => {});
