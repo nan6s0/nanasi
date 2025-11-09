@@ -1,6 +1,7 @@
 const { Events, EmbedBuilder, ChannelType, AuditLogEvent } = require('discord.js');
 
 // === 設定ID ===
+// 💡 以下のIDは、実際の環境に合わせて適切に設定されている前提です。
 const logChannelId = '1434202466773373099'; // ログチャンネルID
 const targetGuildId = '1434084039647821836'; // 監視対象サーバーID
 
@@ -11,16 +12,15 @@ module.exports = {
         // 監視対象サーバー外のメッセージは無視
         if (message.guildId !== targetGuildId) return;
 
-        // 💡 Partialメッセージのフェッチ
+        // 💡 Partialメッセージのフェッチ（Unknown Messageエラー回避のため強化）
         if (message.partial) {
             try {
                 // 部分的なメッセージをフェッチして完全なデータを得る
                 await message.fetch();
             } catch (error) {
                 // DiscordAPIError[10008]: Unknown Message (メッセージが既に存在しない) の場合は、
-                // ログに記録せず、静かに処理を終了する
+                // ログに記録せず、静かに処理を終了する（これが最重要です）
                 if (error.code === 10008) {
-                    // console.log(`[MessageDelete] 削除済みメッセージのPartialイベントを安全に無視しました: ${error.url}`);
                     return; 
                 }
                 
@@ -31,7 +31,6 @@ module.exports = {
         }
         
         // ボット自身のメッセージ、DM、Webhookメッセージは無視
-        // message.author が null の可能性（フェッチできなかった場合など）を考慮して ?. でチェック
         if (message.author?.bot || message.author?.system || message.webhookId) return;
         // メッセージの内容が取得できない場合は無視
         if (!message.content) return; 
@@ -56,12 +55,12 @@ module.exports = {
             if (deletionLog) {
                 const { executor, target, extra, createdAt } = deletionLog;
                 
-                // 💡 厳密なチェック: 実行者がメッセージの送信者でなく、かつ、ターゲットID、チャンネルIDが一致し、5秒以内
+                // 厳密なチェック: 実行者が送信者でなく、ターゲットが作者、チャンネルが一致、5秒以内
                 const isRelevantLog = (
-                    executor.id !== message.author.id && // 実行者が送信者ではない (管理者など)
-                    target.id === message.author.id &&   // ターゲットが削除されたメッセージの作者である
-                    extra?.channel?.id === message.channel.id && // チャンネルが一致する (extra?.channel の安全なアクセス)
-                    Date.now() - createdAt.getTime() < 5000 // 5秒以内
+                    executor.id !== message.author.id && 
+                    target.id === message.author.id &&   
+                    extra?.channel?.id === message.channel.id && 
+                    Date.now() - createdAt.getTime() < 5000 
                 );
 
                 if (isRelevantLog) {
@@ -70,14 +69,12 @@ module.exports = {
                 }
             }
         } catch (error) {
-            // 監査ログの権限がない場合、ここでエラーが発生する
             console.error('メッセージ削除時の監査ログ取得に失敗:', error);
-            // 権限がない場合は、削除者を特定せずに処理を継続
         }
         
         // Embedの作成
         const deleteEmbed = new EmbedBuilder()
-            .setColor(deleteType === '管理者削除' ? 0xE74C3C : 0xFEE75C) // 管理者削除なら赤、自己削除なら黄色
+            .setColor(deleteType === '管理者削除' ? 0xE74C3C : 0xFEE75C) 
             .setTitle('🗑️ メッセージ削除ログ')
             .addFields(
                 { name: '送信者', value: `<@${message.author.id}> (${message.author.tag})`, inline: false },
