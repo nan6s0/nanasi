@@ -3,7 +3,7 @@ const { Events, ChannelType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, Butt
 // === 設定ID ===
 const categoryId = '1434106965423820902'; // チケットチャンネルを作成するカテゴリID
 const logChannelId = '1434111754232664125'; // 作成ログを送信するチャンネルID
-const staffId = '707800417131692104'; // チケットチャンネルで権限を持つユーザー/ロールのID
+const staffId = '1434084127774085200'; // チケットチャンネルで権限を持つユーザー/ロールのID
 
 module.exports = {
     name: Events.InteractionCreate,
