@@ -39,16 +39,12 @@ module.exports = {
         // `free_code_` で始まるカスタムIDのみをフィルタリング
         if (!interaction.customId.startsWith('free_code_')) return;
 
-        // すべての処理はエフェメラルな応答の編集で行うため、即座に deferUpdate を実行
-        if (interaction.isButton() || interaction.isStringSelectMenu()) {
-            await interaction.deferUpdate({ ephemeral: true }).catch(() => {});
-        }
-
-
         // ============================
         // 1. ボタン処理: free_code_start_purchase (フォルダ選択メニューの表示)
         // ============================
         if (interaction.isButton() && interaction.customId === 'free_code_start_purchase') {
+            // 💡 修正: deferUpdateではなく、新しいエフェメラルな応答を送信します。
+            
             const folderSelect = new ActionRowBuilder().addComponents(
                 new StringSelectMenuBuilder()
                     .setCustomId('free_code_select_folder')
@@ -59,7 +55,8 @@ module.exports = {
                     ]),
             );
 
-            await interaction.editReply({
+            // 新しいエフェメラル応答としてフォルダ選択メニューを送信
+            await interaction.reply({
                 content: 'どの種類のコードが欲しいですか？',
                 components: [folderSelect],
                 ephemeral: true,
@@ -80,10 +77,16 @@ module.exports = {
                 value: file.value,
             }));
 
+            // 💡 修正: 元のメッセージを「処理中」として更新し、次のメッセージを followUp で送信します。
+            await interaction.update({ 
+                content: `✅ \`${folderType}/\` を選択しました。次のメニューを表示します。`, 
+                components: [] 
+            }).catch(() => {});
+
             if (options.length === 0) {
-                return interaction.editReply({
+                return interaction.followUp({
                     content: `❌ \`${folderType}/\` フォルダには利用可能なファイルがありません。`,
-                    components: [],
+                    ephemeral: true,
                 });
             }
 
@@ -104,9 +107,11 @@ module.exports = {
                     .addOptions(options),
             );
 
-            await interaction.editReply({
+            // 新しいエフェメラル応答としてファイル選択メニューを送信
+            await interaction.followUp({
                 content: `**\`${folderType}/\`** フォルダから取得したいファイルを選んでください:`,
                 components: [fileSelect],
+                ephemeral: true,
             });
             return;
         }
@@ -122,21 +127,28 @@ module.exports = {
             const folderPath = folderType === 'commands' ? COMMANDS_PATH : EVENTS_PATH;
             const filePath = path.join(folderPath, fileName);
 
+            // 💡 修正: 元のメッセージを「処理中」として更新
+            await interaction.update({ 
+                content: `✅ ファイル \`${fileName}\` を選択しました。DMに送信しています...`, 
+                components: [] 
+            }).catch(() => {});
+            
             let fileContent;
             try {
                 fileContent = fs.readFileSync(filePath, 'utf8');
             } catch (error) {
                 console.error(`ファイル ${filePath} の読み込み中にエラーが発生しました:`, error);
-                await interaction.editReply({
+                return interaction.followUp({
                     content: `❌ ファイル \`${fileName}\` の読み込み中にエラーが発生しました。`,
-                    components: [],
+                    ephemeral: true,
                 });
-                return;
             }
 
             // --- 1. DM送信 ---
             try {
                 const fullCode = `\`\`\`javascript\n${fileContent}\n\`\`\``;
+                
+                let dmReply;
                 
                 // 2000文字のメッセージ制限チェック
                 if (fullCode.length > 2000) {
@@ -148,25 +160,27 @@ module.exports = {
                     for (const chunk of chunks) {
                          await interaction.user.send(`\`\`\`javascript\n${chunk}\n\`\`\``);
                     }
+                    dmReply = `✅ ファイル \`${folderType}/${fileName}\` のコードをDMに**分割して**送信しました！DMを確認してください。`;
 
                 } else {
                     await interaction.user.send({
                         content: `**\`${folderType}/${fileName}\` の無料コードです。**\n\n${fullCode}`,
                     });
+                    dmReply = `✅ ファイル \`${folderType}/${fileName}\` のコードをDMに送信しました！DMを確認してください。`;
                 }
                 
-                await interaction.editReply({
-                    content: `✅ ファイル \`${folderType}/${fileName}\` のコードをDMに送信しました！DMを確認してください。`,
-                    components: [],
+                // 新しいエフェメラル応答として結果を送信
+                await interaction.followUp({
+                    content: dmReply,
+                    ephemeral: true,
                 });
 
             } catch (dmError) {
                 console.error('DM送信中にエラーが発生しました:', dmError);
-                await interaction.editReply({
+                return interaction.followUp({
                     content: '❌ コードのDM送信に失敗しました。DMが閉じられていないか確認してください。',
-                    components: [],
+                    ephemeral: true,
                 });
-                return; 
             }
             
             // --- 2. 実績ログ送信 ---
