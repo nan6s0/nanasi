@@ -1,4 +1,4 @@
-const { Events, ChannelType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, APIInteractionResponseFlags } = require('discord.js');
+const { Events, ChannelType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
 
 // === 設定IDの変更 ===
 const categoryId = '1434106965423820902'; // チケットチャンネルを作成するカテゴリID
@@ -8,8 +8,8 @@ const logChannelId = '1434111754232664125'; // 作成ログを送信するチャ
 const staffUserId = '707800417131692104'; // 個別のスタッフユーザーID
 const staffRoleId = '1434492742297456660'; // メンションしたいスタッフロールID
 
-// Ephemeralフラグ
-const EPHEMERAL_FLAG = APIInteractionResponseFlags.Ephemeral;
+// 💡 修正: APIInteractionResponseFlagsの代わりに直接数値 64 (Ephemeral) を使用
+const EPHEMERAL_FLAG = 64;
 
 module.exports = {
     name: Events.InteractionCreate,
@@ -143,10 +143,10 @@ module.exports = {
 
         // チャンネル削除実行 or キャンセルボタンの処理
         if (interaction.customId === 'close_ticket' || interaction.customId === 'cancel_close') {
-            const channel = interaction.channel; // 削除されるチャンネル情報を取得
-            const closer = interaction.user;     // クローズを実行したユーザー
+            const channel = interaction.channel;
+            const closer = interaction.user;
 
-            // deferReplyは処理の最初に実行されているため、そのまま続行
+            // deferReplyは処理の最初に実行されている前提
 
             if (interaction.customId === 'close_ticket') {
                 
@@ -155,7 +155,7 @@ module.exports = {
                     await interaction.message.edit({
                         content: '✅ チャンネルを削除しています...',
                         embeds: [],
-                        components: [], // ボタンを削除
+                        components: [], 
                     });
                 } catch (e) {
                     if (e.code !== 10008) {
