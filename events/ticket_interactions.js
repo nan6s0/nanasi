@@ -8,7 +8,7 @@ const logChannelId = '1434111754232664125'; // 作成ログを送信するチャ
 const staffUserId = '707800417131692104'; // 個別のスタッフユーザーID
 const staffRoleId = '1434492742297456660'; // メンションしたいスタッフロールID
 
-// 💡 修正: APIInteractionResponseFlagsの代わりに直接数値 64 (Ephemeral) を使用
+// Ephemeralフラグ (64)
 const EPHEMERAL_FLAG = 64;
 
 module.exports = {
@@ -143,15 +143,18 @@ module.exports = {
 
         // チャンネル削除実行 or キャンセルボタンの処理
         if (interaction.customId === 'close_ticket' || interaction.customId === 'cancel_close') {
+            // 💡 修正: 処理開始時に deferReply を実行
+            await interaction.deferReply({ flags: EPHEMERAL_FLAG });
+
             const channel = interaction.channel;
             const closer = interaction.user;
-
-            // deferReplyは処理の最初に実行されている前提
 
             if (interaction.customId === 'close_ticket') {
                 
                 // 1. クローズ確認メッセージ（元のメッセージ）を編集し、ボタンを無効化
                 try {
+                    // editReplyはdeferReplyの後に来るため、ここでの編集はeditReply/followUpの対象外。
+                    // 元のメッセージ (embedとボタンがあるメッセージ) を編集。
                     await interaction.message.edit({
                         content: '✅ チャンネルを削除しています...',
                         embeds: [],
@@ -202,7 +205,7 @@ module.exports = {
                     }).catch(() => {});
                 }
             } else if (interaction.customId === 'cancel_close') {
-                // キャンセルメッセージを編集
+                // キャンセルメッセージを編集 (元のメッセージを編集)
                 try {
                     await interaction.message.edit({
                         content: 'キャンセルされました。',
@@ -215,6 +218,7 @@ module.exports = {
                     }
                 }
 
+                // Ephemeralな応答を編集
                 await interaction.editReply({ 
                     content: 'チャンネル削除の確認を取り消しました。', 
                 });
