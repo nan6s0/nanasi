@@ -1,6 +1,9 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, APIInteractionResponseFlags } = require('discord.js');
 
 const staffUserId = '707800417131692104'; 
+
+// Ephemeralフラグ (Discord.js v14以降)
+// const EPHEMERAL_FLAG = APIInteractionResponseFlags.Ephemeral; // または 64
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -8,8 +11,10 @@ module.exports = {
         .setDescription('お問い合わせパネルを送信します。'),
     
     async execute(interaction) {
-        // 💡 修正1: 最初にdeferReplyを行い、二重応答エラーを防ぐ
-        await interaction.deferReply({ ephemeral: true }); 
+        
+        // 💡 修正1: ephemeralをflags: 64に置き換え、非推奨の警告を解消
+        // deferReplyは処理の最初に実行し、10062エラーを防ぐ
+        await interaction.deferReply({ flags: 64 }); 
 
         // 707800417131692104専用コマンドとしてチェック
         if (interaction.user.id !== staffUserId) {
@@ -23,7 +28,7 @@ module.exports = {
         const panelEmbed = new EmbedBuilder()
             .setColor(0x0099FF)
             .setTitle('お問い合わせパネル')
-            .setDescription('お問い合わせの際は下のボタンからチケットを開いてください。\nチケットはユーザーごとに1つまで作成可能です。'); // 説明を少し追加
+            .setDescription('お問い合わせの際は下のボタンからチケットを開いてください。\nチケットはユーザーごとに1つまで作成可能です。');
 
         // ボタンの作成
         const row = new ActionRowBuilder()
