@@ -1,9 +1,12 @@
 const { Events, ChannelType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
 
-// === 設定ID ===
+// === 設定IDの変更 ===
 const categoryId = '1434106965423820902'; // チケットチャンネルを作成するカテゴリID
 const logChannelId = '1434111754232664125'; // 作成ログを送信するチャンネルID
-const staffId = '707800417131692104'; // チケットチャンネルで権限を持つユーザー/ロールのID
+
+// 💡 修正: スタッフのユーザーIDとロールIDを分けて定義
+const staffUserId = '707800417131692104'; // 個別のスタッフユーザーID
+const staffRoleId = '1434492742297456660'; // メンションしたいスタッフロールID
 
 module.exports = {
     name: Events.InteractionCreate,
@@ -49,7 +52,9 @@ module.exports = {
                     permissionOverwrites: [
                         { id: guild.roles.everyone, deny: [PermissionFlagsBits.ViewChannel] },
                         { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-                        { id: staffId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+                        // 権限にはユーザーIDとロールIDの両方を追加
+                        { id: staffUserId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+                        { id: staffRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
                     ],
                 });
 
@@ -82,8 +87,9 @@ module.exports = {
                         .setStyle(ButtonStyle.Danger)
                 );
 
+                // 💡 修正: メッセージのメンションには staffRoleId を使用
                 await ticketChannel.send({
-                    content: `**<@${user.id}>** 様、<@&${staffId}>が対応します。`, 
+                    content: `<@${user.id}> 様、<@&${staffRoleId}>が対応します。`, 
                     embeds: [welcomeEmbed],
                     components: [closeButton]
                 });
@@ -141,13 +147,13 @@ module.exports = {
 
         // チャンネル削除実行 or キャンセルボタンの処理
         if (interaction.customId === 'close_ticket' || interaction.customId === 'cancel_close') {
-            // 💡 修正: deferReplyは最初に実行し、処理が固まるのを防ぐ
+            // deferReplyは最初に実行し、処理が固まるのを防ぐ
             await interaction.deferReply({ ephemeral: true });
 
             if (interaction.customId === 'close_ticket') {
                 
                 // 1. クローズ確認メッセージ（元のメッセージ）を編集し、ボタンを無効化
-                // 💡 修正: Unknown Messageエラー(10008)を無視し、続行できるようにする
+                // Unknown Messageエラー(10008)を無視し、続行できるようにする
                 try {
                     await interaction.message.edit({
                         content: '✅ チャンネルを削除しています...',
@@ -155,7 +161,7 @@ module.exports = {
                         components: [], // ボタンを削除
                     });
                 } catch (e) {
-                    // Unknown Messageエラー(10008)の場合は、メッセージは既に削除されているので無視して続行
+                    // Unknown Messageエラーの場合は、メッセージは既に削除されているので無視して続行
                     if (e.code !== 10008) {
                         console.error('確認メッセージの編集中にエラーが発生しました:', e);
                     }
@@ -174,12 +180,11 @@ module.exports = {
                 } catch (error) {
                     // チャンネル削除中にエラーが発生した場合
                     if (error.code === 10008) { 
-                         // チャンネル削除後のエラーは無視（editReplyは成功しているため）
+                         // チャンネル削除後のエラーは無視
                          return;
                     }
                     
                     console.error('チャンネル削除中にエラーが発生しました:', error);
-                    // 既にeditReplyで応答済みのため、followUpでエラーを通知
                     await interaction.followUp({ 
                         content: 'チャンネルの削除中にエラーが発生しました。ボットの削除権限を確認してください。', 
                         ephemeral: true 
@@ -187,7 +192,6 @@ module.exports = {
                 }
             } else if (interaction.customId === 'cancel_close') {
                 // キャンセルメッセージを編集
-                // 💡 修正: Unknown Messageエラー(10008)を無視し、続行できるようにする
                 try {
                     await interaction.message.edit({
                         content: 'キャンセルされました。',
