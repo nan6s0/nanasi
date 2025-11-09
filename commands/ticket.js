@@ -23,7 +23,7 @@ module.exports = {
         const panelEmbed = new EmbedBuilder()
             .setColor(0x0099FF)
             .setTitle('お問い合わせパネル')
-            .setDescription('お問い合わせの際は下のボタンから');
+            .setDescription('お問い合わせの際は下のボタンからチケットを開いてください。\nチケットはユーザーごとに1つまで作成可能です。'); // 説明を少し追加
 
         // ボタンの作成
         const row = new ActionRowBuilder()
