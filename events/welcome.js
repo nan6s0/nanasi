@@ -3,6 +3,9 @@ const { Events, EmbedBuilder } = require('discord.js');
 // === 設定ID (使用前に必ずご自身のサーバーIDとチャンネルIDに書き換えてください) ===
 const targetGuildId = '1434084039647821836'; // 対象サーバーID
 const welcomeChannelId = '1434150986980786198'; // 歓迎メッセージ送信先チャンネルID
+// 重要なチャンネルのIDを設定します (例: ルールチャンネル, 自己紹介チャンネルなど)
+const rulesChannelId = '1434085112030691421'; 
+const guideChannelId = '1434099904698908754'; 
 
 module.exports = {
     // GuildMemberAdd イベントを購読
@@ -13,23 +16,47 @@ module.exports = {
         if (member.guild.id !== targetGuildId) return;
 
         // ------------------------------------
-        // 1. サーバーチャンネルへの歓迎メッセージ送信
+        // 1. サーバーチャンネルへの歓迎メッセージ送信 (Embed化)
         // ------------------------------------
         const welcomeChannel = member.guild.channels.cache.get(welcomeChannelId);
 
         if (welcomeChannel) {
-            // シンプルなテキストメッセージを送信
-            const serverWelcomeMessage = `${member}さん、${member.guild.name}へようこそ！ 👋\nみんなで楽しく活動しましょう！`;
-            
+            // サーバーチャンネル用のEmbedを作成
+            const channelWelcomeEmbed = new EmbedBuilder()
+                .setColor(0x3498DB) // 明るい青色
+                .setTitle(`🎉 ${member.guild.name}へようこそ！`)
+                .setDescription(`新メンバーの **${member}** さんがいらっしゃいました！\n皆さんで一緒に楽しく活動しましょう！`)
+                .setThumbnail(member.user.displayAvatarURL({ dynamic: true })) // 新メンバーのアバターをサムネイルに
+                .addFields(
+                    {
+                        name: '📢 まずはここから',
+                        // チャンネルIDを使って、mention可能な形式で表示
+                        value: `① <#${rulesChannelId}> で利用規約をご確認ください。\n② <#${guideChannelId}> で配布のルールやガイドを確認してください。`,
+                        inline: false
+                    },
+                    {
+                        name: '👥 現在のメンバー数',
+                        value: `\`${member.guild.memberCount}\` 人`,
+                        inline: true
+                    }
+                )
+                // 参加者をハイライト
+                .setFooter({ text: `ようこそ！ ${member.user.tag}！`, iconURL: member.guild.iconURL({ dynamic: true }) })
+                .setTimestamp();
+
             try {
-                await welcomeChannel.send(serverWelcomeMessage);
+                // チャンネルにEmbedを送信
+                await welcomeChannel.send({ 
+                    content: `✨ Welcome ${member}!`, // Embedの上にメンションを付ける
+                    embeds: [channelWelcomeEmbed] 
+                });
             } catch (error) {
-                console.error(`歓迎チャンネルへのメッセージ送信中にエラーが発生しました: ${error}`);
+                console.error(`歓迎チャンネルへのEmbed送信中にエラーが発生しました: ${error}`);
             }
         }
 
         // ------------------------------------
-        // 2. メンバーのDMへの埋め込みメッセージ送信
+        // 2. メンバーのDMへの埋め込みメッセージ送信 (変更なし)
         // ------------------------------------
         const dmEmbed = new EmbedBuilder()
             .setColor(0x00AABB) // 好みの色に変更可能 (例: Discordの青)
@@ -49,13 +76,9 @@ module.exports = {
             .setTimestamp();
         
         try {
-            // メンバーにDMを送信
-            // member.send() は member.user.send() と同義です。
             await member.send({ embeds: [dmEmbed] });
         } catch (error) {
-            // DMが閉じられている、またはプライバシー設定により送信できない場合のエラー
             console.log(`${member.user.tag} にDMを送信できませんでした。DMが閉じられています。`);
-            // console.error(error); // 詳細なエラーが必要な場合
         }
     },
 };
